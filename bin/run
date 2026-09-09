@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Builds and launches Write.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+./bin/build "${1:-debug}"
+open .build/Write.app

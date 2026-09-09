@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Builds Write and puts it in /Applications.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+./bin/build release
+
+destination="${1:-/Applications}"
+rm -rf "$destination/Write.app"
+cp -R .build/Write.app "$destination/Write.app"
+echo "Installed $destination/Write.app"

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Builds Write.app into .build/. Pass "debug" for a debug build.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+configuration="${1:-release}"
+
+swift build -c "$configuration"
+binaries="$(swift build -c "$configuration" --show-bin-path)"
+
+app=".build/Write.app"
+rm -rf "$app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/Fonts"
+
+cp "$binaries/Write" "$app/Contents/MacOS/Write"
+cp Resources/Info.plist "$app/Contents/Info.plist"
+cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+cp Resources/Fonts/*.ttf Resources/Fonts/OFL.txt "$app/Contents/Resources/Fonts/"
+printf 'APPL????' > "$app/Contents/PkgInfo"
+
+# Any SwiftPM resource bundles belong next to the executable's resources.
+shopt -s nullglob
+for bundle in "$binaries"/*.bundle; do
+  cp -R "$bundle" "$app/Contents/Resources/"
+done
+shopt -u nullglob
+
+# An ad-hoc signature gives the bundle a stable identity, which macOS wants
+# before it will remember window positions and file access for it.
+codesign --force --sign - "$app" >/dev/null 2>&1 || \
+  echo "note: could not sign $app; it will still run" >&2
+
+echo "Built $app"
