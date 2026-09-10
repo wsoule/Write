@@ -97,9 +97,12 @@ final class WriteDocument: NSDocument {
     private static func decode(_ data: Data) -> String? {
         if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
 
-        var encoding: UInt = 0
-        if let detected = NSString(data: data, usedEncoding: &encoding) as String? {
-            return detected
+        var converted: NSString?
+        let encoding = NSString.stringEncoding(for: data, encodingOptions: nil,
+                                               convertedString: &converted,
+                                               usedLossyConversion: nil)
+        if encoding != 0, let converted {
+            return converted as String
         }
         return String(data: data, encoding: .isoLatin1)
     }
@@ -222,7 +225,7 @@ final class WriteDocument: NSDocument {
         printView.isVerticallyResizable = true
         printView.isHorizontallyResizable = false
         printView.textContainer?.containerSize = NSSize(width: width,
-                                                        height: .greatestFiniteMagnitude)
+                                                        height: CGFloat.greatestFiniteMagnitude)
         printView.textContainer?.widthTracksTextView = true
         printView.textContainer?.lineFragmentPadding = 0
 

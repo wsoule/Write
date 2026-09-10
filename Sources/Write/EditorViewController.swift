@@ -22,7 +22,7 @@ final class EditorViewController: NSViewController, NSTextViewDelegate, FindBarD
         self.document = document
 
         let layoutManager = NSLayoutManager()
-        let container = NSTextContainer(size: NSSize(width: 0, height: .greatestFiniteMagnitude))
+        let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         container.lineFragmentPadding = 0
         document.textStorage.addLayoutManager(layoutManager)
@@ -51,7 +51,7 @@ final class EditorViewController: NSViewController, NSTextViewDelegate, FindBarD
 
         footer.translatesAutoresizingMaskIntoConstraints = false
         footer.onSave = { [weak self] in
-            NSApp.sendAction(#selector(NSDocument.saveDocument(_:)), to: nil, from: self)
+            NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: self)
         }
         footer.onOpen = { [weak self] in
             NSApp.sendAction(#selector(NSDocumentController.openDocument(_:)), to: nil, from: self)
@@ -115,8 +115,8 @@ final class EditorViewController: NSViewController, NSTextViewDelegate, FindBarD
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
         textView.minSize = NSSize(width: 0, height: 0)
-        textView.maxSize = NSSize(width: .greatestFiniteMagnitude,
-                                  height: .greatestFiniteMagnitude)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
     }
 
     private func configureScrollView() {
