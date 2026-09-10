@@ -188,6 +188,35 @@ final class MarkdownTextView: NSTextView {
         return LinkURL.normalized(text)
     }
 
+    // MARK: - Caret height
+
+    /// The 1.4 line height leaves air above every line, and the stock caret
+    /// stretches through all of it. Trim it to the glyphs it sits beside.
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        super.drawInsertionPoint(in: glyphAlignedCaret(rect), color: color, turnedOn: flag)
+    }
+
+    private func glyphAlignedCaret(_ rect: NSRect) -> NSRect {
+        guard let layoutManager, let font = fontAtInsertionPoint() else { return rect }
+        // TextKit adds the extra line height above the glyph block, so the
+        // block is the bottom `defaultLineHeight` of the fragment, with the
+        // baseline `ascender` below its top.
+        let blockTop = rect.maxY - layoutManager.defaultLineHeight(for: font)
+        let height = min(font.ascender - font.descender, rect.maxY - blockTop)
+        return NSRect(x: rect.minX, y: blockTop, width: rect.width, height: height)
+    }
+
+    private func fontAtInsertionPoint() -> NSFont? {
+        guard let storage = textStorage else { return font }
+        let location = selectedRange().location
+        let sample = location < storage.length ? location : location - 1
+        if sample >= 0, sample < storage.length,
+           let font = storage.attribute(.font, at: sample, effectiveRange: nil) as? NSFont {
+            return font
+        }
+        return typingAttributes[.font] as? NSFont ?? font
+    }
+
     // MARK: - Placeholder
 
     override func draw(_ dirtyRect: NSRect) {
