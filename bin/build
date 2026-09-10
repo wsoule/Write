@@ -5,8 +5,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 configuration="${1:-release}"
 
-swift build -c "$configuration"
-binaries="$(swift build -c "$configuration" --show-bin-path)"
+# Release builds are universal so one download serves both Mac families;
+# debug builds stay native for speed.
+arch_flags=()
+if [ "$configuration" = release ]; then
+  arch_flags=(--arch arm64 --arch x86_64)
+fi
+
+swift build -c "$configuration" "${arch_flags[@]}"
+binaries="$(swift build -c "$configuration" "${arch_flags[@]}" --show-bin-path)"
 
 app=".build/Write.app"
 rm -rf "$app"
