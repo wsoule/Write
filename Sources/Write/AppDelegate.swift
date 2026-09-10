@@ -18,4 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showKeyboardShortcuts(_ sender: Any?) {
         ShortcutsPanel.show()
     }
+
+    @objc func showRecents(_ sender: Any?) {
+        RecentsPanel.toggle()
+    }
 }

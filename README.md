@@ -47,13 +47,14 @@ replacing it.
 |---|---|
 | `⌘N` | New document |
 | `⌘O` | Open |
+| `⌘K` | Open recent |
 | `⌘S` / `⇧⌘S` | Save / Save As |
 | `⌘P` | Print |
 | `⌘Z` / `⇧⌘Z` | Undo / Redo |
 | `⌘F` | Find |
 | `⌥⌘F` | Find and Replace |
 | `⌘G` / `⇧⌘G` | Next / previous match |
-| `⌘B` / `⌘I` / `⌘K` | Bold / italic / link |
+| `⌘B` / `⌘I` / `⌘L` | Bold / italic / link |
 | `⌘+` / `⌘-` / `⌘0` | Bigger / smaller / actual size |
 | `⌃⌘F` | Full screen |
 | `⌘/` | This list |

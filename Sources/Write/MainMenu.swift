@@ -53,6 +53,7 @@ enum MainMenu {
         let menu = NSMenu(title: "File")
         menu.addItem(item("New", Selector(("newDocument:")), "n"))
         menu.addItem(item("Open…", Selector(("openDocument:")), "o"))
+        menu.addItem(item("Open Recent…", Selector(("showRecents:")), "k"))
 
         let recent = NSMenu(title: "Open Recent")
         // AppKit fills this in once it is identified as the recents menu.
@@ -120,7 +121,7 @@ enum MainMenu {
         let menu = NSMenu(title: "Format")
         menu.addItem(item("Bold", Selector(("toggleBoldMarkdown:")), "b"))
         menu.addItem(item("Italic", Selector(("toggleItalicMarkdown:")), "i"))
-        menu.addItem(item("Link", Selector(("insertMarkdownLink:")), "k"))
+        menu.addItem(item("Link", Selector(("insertMarkdownLink:")), "l"))
         return wrap(menu)
     }
 

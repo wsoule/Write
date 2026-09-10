@@ -212,3 +212,38 @@ final class MarkdownEditsTests: XCTestCase {
         XCTAssertNil(MarkdownEdits.deleteParagraphBreak(in: "one\n", selection: NSRange(location: 4, length: 0)))
     }
 }
+
+final class RecentsFilterTests: XCTestCase {
+    private let names = ["Notes.md", "Draft chapter.md", "todo.md", "Meeting notes.md"]
+
+    func testAnEmptyQueryKeepsEverythingInOrder() {
+        XCTAssertEqual(RecentsFilter.filter(names, query: ""), names)
+        XCTAssertEqual(RecentsFilter.filter(names, query: "   "), names)
+    }
+
+    func testMatchesIgnoreCase() {
+        XCTAssertEqual(RecentsFilter.filter(names, query: "NOTES"), ["Notes.md", "Meeting notes.md"])
+    }
+
+    func testSubstringMatchesRankAboveScatteredOnes() {
+        // "ia" sits inside "Diary" but is only scattered through "Ideas", so
+        // Diary wins even though Ideas was opened more recently.
+        XCTAssertEqual(RecentsFilter.filter(["Ideas.md", "Diary.md"], query: "ia"),
+                       ["Diary.md", "Ideas.md"])
+    }
+
+    func testScatteredLettersMustAppearInOrder() {
+        XCTAssertEqual(RecentsFilter.filter(names, query: "dch"), ["Draft chapter.md"])
+        XCTAssertEqual(RecentsFilter.filter(names, query: "hcd"), [])
+    }
+
+    func testDropsNamesThatDoNotContainTheQueryLetters() {
+        XCTAssertEqual(RecentsFilter.filter(names, query: "xyz"), [])
+    }
+
+    func testFiltersArbitraryItemsByAName() {
+        struct Item: Equatable { let name: String; let id: Int }
+        let items = [Item(name: "b.md", id: 1), Item(name: "a.md", id: 2)]
+        XCTAssertEqual(RecentsFilter.filter(items, query: "a", name: \.name), [items[1]])
+    }
+}

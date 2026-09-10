@@ -7,6 +7,7 @@ enum ShortcutsPanel {
     private static let shortcuts: [(String, String)] = [
         ("⌘N", "New document"),
         ("⌘O", "Open"),
+        ("⌘K", "Open recent"),
         ("⌘S", "Save"),
         ("⇧⌘S", "Save As"),
         ("⌘P", "Print"),
@@ -16,7 +17,7 @@ enum ShortcutsPanel {
         ("⌘G / ⇧⌘G", "Next / previous match"),
         ("⌘B", "Bold"),
         ("⌘I", "Italic"),
-        ("⌘K", "Link"),
+        ("⌘L", "Link"),
         ("⌘+ / ⌘- / ⌘0", "Bigger / smaller / actual size"),
         ("⌃⌘F", "Full screen"),
         ("⏎", "New paragraph, or continue a list"),
