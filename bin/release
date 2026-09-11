@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Builds, signs, notarizes and publishes a release, then bumps the Homebrew cask.
+#
+#   ./bin/release 1.1
+#
+# Needs a Developer ID certificate in the keychain, a notarytool keychain
+# profile called "notary" (xcrun notarytool store-credentials notary ...),
+# the gh CLI signed in, and wsoule/homebrew-tap tapped locally.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+version="${1:?usage: bin/release <version>}"
+identity="${IDENTITY:-Developer ID Application: Wyat Soule (6G9AQYBJ47)}"
+profile="${NOTARY_PROFILE:-notary}"
+tap="$(brew --repository)/Library/Taps/wsoule/homebrew-tap"
+app=".build/Write.app"
+zip=".build/Write-$version.zip"
+
+# Version the bundle so About and the cask agree.
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" Resources/Info.plist
+build="$(git rev-list --count HEAD)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" Resources/Info.plist
+
+./bin/build
+codesign --force --deep --options runtime --timestamp --sign "$identity" "$app"
+codesign --verify --deep --strict "$app"
+
+echo "Notarizing…"
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait
+xcrun stapler staple "$app"
+spctl --assess --type execute "$app"
+
+# The stapled ticket changes the bundle, so the published zip is made after it.
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+sha="$(shasum -a 256 "$zip" | cut -d' ' -f1)"
+
+git add Resources/Info.plist
+git diff --cached --quiet || git commit -q -m "Write $version"
+git tag -f "v$version"
+git push -q origin HEAD "v$version"
+
+if gh release view "v$version" >/dev/null 2>&1; then
+  gh release upload "v$version" "$zip#Write.app (macOS 13+, universal, notarized)" --clobber
+else
+  gh release create "v$version" "$zip#Write.app (macOS 13+, universal, notarized)" \
+    --title "Write $version" --generate-notes
+fi
+
+cask="$tap/Casks/write.rb"
+sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" \
+          -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
+(cd "$tap" && git add Casks/write.rb && git commit -q -m "write $version" && git push -q origin HEAD)
+
+echo "Released v$version — sha256 $sha"
