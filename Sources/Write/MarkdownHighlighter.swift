@@ -201,7 +201,8 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
                 lineItalic = Fonts.italic(font)
                 // The hashes share the heading's size when shown, and vanish
                 // once the caret leaves the line.
-                let hashes = NSRange(location: offset, length: range.location - offset)
+                let hashes = shifted(NSRange(location: 0, length: span.range.location),
+                                     by: offset, within: storage)
                 if caretOnLine {
                     storage.addAttribute(.font, value: font, range: hashes)
                 } else {
@@ -286,8 +287,13 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
                 .paragraphStyle: Self.paragraphStyle]
     }
 
+    /// Moves a line-relative range into storage coordinates, clamped to the
+    /// storage. Done by hand rather than with `NSIntersectionRange`, which
+    /// collapses an empty range at the very end to `{0, 0}` and loses where
+    /// it was.
     private func shifted(_ range: NSRange, by offset: Int, within storage: NSTextStorage) -> NSRange {
-        let moved = NSRange(location: range.location + offset, length: range.length)
-        return NSIntersectionRange(moved, NSRange(location: 0, length: storage.length))
+        let start = min(range.location + offset, storage.length)
+        let end = min(range.upperBound + offset, storage.length)
+        return NSRange(location: start, length: max(0, end - start))
     }
 }

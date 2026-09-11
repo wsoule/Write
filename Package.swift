@@ -16,5 +16,7 @@ let package = Package(
         .target(name: "WriteKit"),
         .executableTarget(name: "Write", dependencies: ["WriteKit"]),
         .testTarget(name: "WriteKitTests", dependencies: ["WriteKit"]),
+        // AppKit-level tests: the highlighter against a real NSTextStorage.
+        .testTarget(name: "WriteTests", dependencies: ["Write"]),
     ]
 )
