@@ -5,8 +5,8 @@ import WriteKit
 ///
 /// A plain `NSTextView` plus the handful of behaviours that make writing
 /// Markdown feel like writing prose: Return continues a list, Backspace undoes
-/// a whole paragraph break, pasting a URL over a phrase links it, and the caret
-/// steps over the markers the highlighter collapsed.
+/// a whole paragraph break, pasting a URL over a phrase links it, and the
+/// markers around the span the caret touches come back into view.
 final class MarkdownTextView: NSTextView {
     private static let placeholder = "# Start writing"
 
@@ -105,73 +105,27 @@ final class MarkdownTextView: NSTextView {
         scrollRangeToVisible(selection)
     }
 
-    // MARK: - Caret and collapsed markers
+    // MARK: - Revealing markers around the caret
 
-    override func moveRight(_ sender: Any?) {
-        super.moveRight(sender)
-        skipCollapsedMarkers(forward: true)
-    }
+    /// The highlighter that collapses and reveals markers; it needs to know
+    /// where the caret is.
+    weak var highlighter: MarkdownHighlighter?
 
-    override func moveLeft(_ sender: Any?) {
-        super.moveLeft(sender)
-        skipCollapsedMarkers(forward: false)
-    }
-
-    /// The markers are invisible, so a caret parked inside one looks like a
-    /// caret that refuses to move. Step it past them.
-    private func skipCollapsedMarkers(forward: Bool) {
-        let selection = selectedRange()
-        guard selection.length == 0 else { return }
-
-        let adjusted = skippingCollapsedMarkers(from: selection.location, forward: forward)
-        guard adjusted != selection.location else { return }
-        setSelectedRange(NSRange(location: adjusted, length: 0))
-    }
-
-    private func skippingCollapsedMarkers(from position: Int, forward: Bool) -> Int {
-        let ranges = collapsedMarkerRanges(around: position)
-        guard !ranges.isEmpty else { return position }
-
-        var result = position
-        var moved = true
-        while moved {
-            moved = false
-            for range in ranges {
-                if forward, result >= range.location, result < range.upperBound {
-                    result = range.upperBound
-                    moved = true
-                } else if !forward, result > range.location, result <= range.upperBound {
-                    result = range.location
-                    moved = true
-                }
-            }
-        }
-        return result
-    }
-
-    private func collapsedMarkerRanges(around position: Int) -> [NSRange] {
-        let text = string as NSString
-        guard text.length > 0 else { return [] }
-
-        let lineRange = lineContentRange(containing: min(position, text.length), in: text)
-        let line = text.substring(with: lineRange)
-        return MarkdownSyntax.hiddenMarkerRanges(in: line).map {
-            NSRange(location: $0.location + lineRange.location, length: $0.length)
+    /// Every selection change — keys, mouse, programmatic — funnels through
+    /// here, so this is where the highlighter learns the caret moved.
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity,
+                                    stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        if let first = ranges.first?.rangeValue {
+            highlighter?.setSelection(first)
         }
     }
 
-    /// The line around `position`, without its terminator.
-    private func lineContentRange(containing position: Int, in text: NSString) -> NSRange {
-        let anchor = min(position, max(0, text.length - 1))
-        var range = text.lineRange(for: NSRange(location: anchor, length: 0))
-        while range.length > 0 {
-            let last = text.character(at: range.upperBound - 1)
-            guard let scalar = Unicode.Scalar(last), CharacterSet.newlines.contains(scalar) else {
-                break
-            }
-            range.length -= 1
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            highlighter?.setSelection(selectedRange())
         }
-        return range
     }
 
     // MARK: - Pasteboard

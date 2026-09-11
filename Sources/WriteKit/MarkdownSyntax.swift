@@ -3,8 +3,8 @@ import Foundation
 /// Scans a single line of Markdown for the spans the editor styles.
 ///
 /// This is the single source of truth for inline Markdown: the highlighter
-/// uses it to style content and hide the markers, and the text view uses it
-/// (through `hiddenMarkerRanges`) to skip the caret over markers it hid.
+/// uses it to style content, and to decide which markers to hide and which to
+/// reveal around the caret.
 ///
 /// Everything is expressed in UTF-16 offsets (`NSRange`) so the results can be
 /// handed straight to `NSTextStorage`.
@@ -16,6 +16,7 @@ public enum MarkdownSyntax {
         case bold
         case italic
         case link
+        case code
     }
 
     public struct InlineMarkup: Equatable {
@@ -31,6 +32,20 @@ public enum MarkdownSyntax {
             self.content = content
             self.markers = markers
         }
+
+        /// The whole span, opening marker through closing marker.
+        public var range: NSRange {
+            let start = markers.first?.location ?? content.location
+            let end = markers.last?.upperBound ?? content.upperBound
+            return NSRange(location: start, length: end - start)
+        }
+
+        /// Whether the markers should be shown: the selection is inside the
+        /// span, or a caret sits right at either edge of it.
+        public func isRevealed(by selection: NSRange) -> Bool {
+            let span = range
+            return selection.location <= span.upperBound && selection.upperBound >= span.location
+        }
     }
 
     private static let boldPattern = regex(#"(\*\*|__)(.+?)(\1)"#)
@@ -38,10 +53,11 @@ public enum MarkdownSyntax {
     private static let linkPattern = regex(#"\[([^\]]+)\]\(((?:\\.|[^)])+)\)"#)
     private static let codePattern = regex(#"`([^`]+)`"#)
 
-    /// Bold, italic and link spans on `line`, in that order. Later spans win
-    /// where they overlap, which matches how the highlighter applies them.
+    /// Bold, italic, link and code spans on `line`, in that order. Later spans
+    /// win where they overlap, which matches how the highlighter applies them.
     public static func inlineMarkup(in line: String) -> [InlineMarkup] {
-        guard line.contains("*") || line.contains("_") || line.contains("[") else { return [] }
+        guard line.contains("*") || line.contains("_") || line.contains("[")
+                || line.contains("`") else { return [] }
 
         let text = line as NSString
         let whole = NSRange(location: 0, length: text.length)
@@ -73,22 +89,15 @@ public enum MarkdownSyntax {
                                                          length: span.upperBound - content.upperBound)]))
         }
 
+        for match in codePattern.matches(in: line, range: whole) {
+            let span = match.range(at: 0)
+            markup.append(InlineMarkup(kind: .code,
+                                       content: match.range(at: 1),
+                                       markers: [NSRange(location: span.location, length: 1),
+                                                 NSRange(location: span.upperBound - 1, length: 1)]))
+        }
+
         return markup
-    }
-
-    /// Inline code spans, including the surrounding backticks.
-    public static func codeSpans(in line: String) -> [NSRange] {
-        guard line.contains("`") else { return [] }
-        let whole = NSRange(location: 0, length: (line as NSString).length)
-        return codePattern.matches(in: line, range: whole).map { $0.range(at: 0) }
-    }
-
-    /// The marker ranges the highlighter hides on `line`, sorted by position.
-    public static func hiddenMarkerRanges(in line: String) -> [NSRange] {
-        inlineMarkup(in: line)
-            .flatMap(\.markers)
-            .filter { $0.location != NSNotFound && $0.length > 0 }
-            .sorted { $0.location < $1.location }
     }
 
     // MARK: - Block
@@ -96,7 +105,7 @@ public enum MarkdownSyntax {
     public enum BlockStyle: Equatable {
         /// Leading punctuation: `#`, `>`, list bullets, horizontal rules.
         case marker
-        case heading
+        case heading(level: Int)
         case quote
     }
 
@@ -135,7 +144,8 @@ public enum MarkdownSyntax {
            let heading = headingPattern.firstMatch(in: line, range: whole) {
             let markerLength = heading.range(at: 1).length + heading.range(at: 2).length
             spans.append(BlockSpan(range: NSRange(location: 0, length: markerLength), style: .marker))
-            spans.append(BlockSpan(range: heading.range(at: 3), style: .heading))
+            spans.append(BlockSpan(range: heading.range(at: 3),
+                                   style: .heading(level: heading.range(at: 1).length)))
             return spans
         }
 

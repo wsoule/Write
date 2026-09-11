@@ -33,10 +33,11 @@ the list. `⇧⏎` is a plain line break, and inside a fenced code block Return 
 left alone. Backspace against a paragraph break removes the whole break, so it
 undoes exactly one Return.
 
-The markers around **bold**, *italic* and [link](https://example.com) text are
-collapsed to nothing once they are closed — the text styles itself and the
-source stays plain Markdown. The caret steps over the collapsed markers rather
-than disappearing into them.
+The markers around **bold**, *italic*, `code` and [link](https://example.com)
+text are collapsed to nothing once they are closed — the text styles itself and
+the source stays plain Markdown. Put the caret on or next to a span and its
+markers come back, dimmed, so you can edit them; the same goes for a heading's
+`#`. Headings scale from H1 down to H6.
 
 Pasting a URL over selected text turns it into a Markdown link instead of
 replacing it.

@@ -28,6 +28,7 @@ final class EditorViewController: NSViewController, NSTextViewDelegate, FindBarD
         document.textStorage.addLayoutManager(layoutManager)
         layoutManager.addTextContainer(container)
         textView = MarkdownTextView(frame: .zero, textContainer: container)
+        textView.highlighter = document.highlighter
 
         super.init(nibName: nil, bundle: nil)
     }

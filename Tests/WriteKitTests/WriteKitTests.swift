@@ -75,23 +75,34 @@ final class MarkdownSyntaxTests: XCTestCase {
 
     func testIgnoresLinesWithoutMarkup() {
         XCTAssertTrue(MarkdownSyntax.inlineMarkup(in: "plain prose").isEmpty)
-        XCTAssertTrue(MarkdownSyntax.hiddenMarkerRanges(in: "plain prose").isEmpty)
     }
 
-    func testHiddenMarkersAreSorted() {
-        let hidden = MarkdownSyntax.hiddenMarkerRanges(in: "*a* and **b**")
-        XCTAssertEqual(hidden.map(\.location), [0, 2, 8, 11])
+    func testInlineCodeIsMarkupWithBacktickMarkers() {
+        let markup = MarkdownSyntax.inlineMarkup(in: "run `swift build` now")
+        XCTAssertEqual(markup.map(\.kind), [.code])
+        XCTAssertEqual(markup[0].content, NSRange(location: 5, length: 11))
+        XCTAssertEqual(markup[0].markers, [NSRange(location: 4, length: 1),
+                                           NSRange(location: 16, length: 1)])
     }
 
-    func testCodeSpansIncludeTheirBackticks() {
-        XCTAssertEqual(MarkdownSyntax.codeSpans(in: "run `swift build` now"),
-                       [NSRange(location: 4, length: 13)])
-    }
-
-    func testHeadingSplitsMarkerFromText() {
+    func testHeadingSplitsMarkerFromTextAndKnowsItsLevel() {
         let spans = MarkdownSyntax.blockSpans(in: "## Title")
         XCTAssertEqual(spans, [.init(range: NSRange(location: 0, length: 3), style: .marker),
-                               .init(range: NSRange(location: 3, length: 5), style: .heading)])
+                               .init(range: NSRange(location: 3, length: 5),
+                                     style: .heading(level: 2))])
+        XCTAssertEqual(MarkdownSyntax.blockSpans(in: "# One").last?.style, .heading(level: 1))
+        XCTAssertEqual(MarkdownSyntax.blockSpans(in: "###### Six").last?.style, .heading(level: 6))
+    }
+
+    func testSpanIsRevealedWhenTheSelectionTouchesIt() {
+        // "**bold** x" — the span, markers included, is 0..<8.
+        let bold = MarkdownSyntax.inlineMarkup(in: "**bold** x")[0]
+        XCTAssertTrue(bold.isRevealed(by: NSRange(location: 0, length: 0)), "caret before")
+        XCTAssertTrue(bold.isRevealed(by: NSRange(location: 4, length: 0)), "caret inside")
+        XCTAssertTrue(bold.isRevealed(by: NSRange(location: 8, length: 0)), "caret after")
+        XCTAssertTrue(bold.isRevealed(by: NSRange(location: 6, length: 4)), "selection overlaps")
+        XCTAssertFalse(bold.isRevealed(by: NSRange(location: 9, length: 0)), "caret elsewhere")
+        XCTAssertFalse(bold.isRevealed(by: NSRange(location: 9, length: 1)), "selection elsewhere")
     }
 
     func testQuotesListsAndRules() {

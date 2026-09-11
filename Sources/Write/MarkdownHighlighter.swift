@@ -27,10 +27,11 @@ struct HighlightPalette {
 
 /// Styles Markdown as it is typed.
 ///
-/// Structural punctuation is dimmed, and the markers around bold, italic and
-/// link text are collapsed to nothing so the prose reads clean while the source
-/// stays plain text. `MarkdownTextView` steps the caret over the collapsed
-/// markers using the same scan.
+/// Structural punctuation is dimmed, and the markers around bold, italic, link
+/// and code text are collapsed to nothing so the prose reads clean while the
+/// source stays plain text. The span the caret is in (or touching) shows its
+/// markers again, dimmed, so the source is there when you want to edit it —
+/// the way Obsidian's live preview behaves.
 final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
     private(set) var baseFont: NSFont
     var palette: HighlightPalette
@@ -39,6 +40,15 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
     /// paragraph measurably slower.
     private var boldFont: NSFont = .systemFont(ofSize: 12)
     private var italicFont: NSFont = .systemFont(ofSize: 12)
+    private var headingFonts: [NSFont] = []
+
+    /// Heading sizes relative to the body, H1 through H6. Gentler than
+    /// Obsidian's because a monospaced face at 1.4 line height gets airy fast.
+    static let headingScales: [CGFloat] = [1.6, 1.4, 1.25, 1.1, 1.0, 1.0]
+
+    /// Where the caret is, so the span it touches can show its markers.
+    /// Nil (the print copy) reveals nothing.
+    private(set) var selection: NSRange?
 
     /// Highlighted occurrences of the find query, and which one is current.
     private(set) var searchQuery = ""
@@ -72,6 +82,30 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
     private func cacheDerivedFonts() {
         boldFont = Fonts.bold(baseFont)
         italicFont = Fonts.italic(baseFont)
+        headingFonts = Self.headingScales.map { scale in
+            Fonts.bold(Fonts.editor(size: (baseFont.pointSize * scale).rounded()))
+        }
+    }
+
+    // MARK: - Selection
+
+    /// Restyles the paragraphs the caret left and entered, which is all that
+    /// can change: reveal is decided per span from the selection.
+    func setSelection(_ newSelection: NSRange) {
+        let old = selection
+        selection = newSelection
+        guard let textStorage = self.textStorage else { return }
+
+        let string = textStorage.string as NSString
+        var ranges = [string.paragraphRange(for: newSelection)]
+        if let old, old.location <= string.length {
+            let previous = string.paragraphRange(for: old)
+            if !NSEqualRanges(previous, ranges[0]) { ranges.append(previous) }
+        }
+
+        textStorage.beginEditing()
+        for range in ranges { highlight(textStorage, in: range) }
+        textStorage.endEditing()
     }
 
     // MARK: - Attributes
@@ -148,44 +182,75 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
 
     private func highlightLine(_ line: String, at offset: Int, in storage: NSTextStorage,
                                hidden: [NSAttributedString.Key: Any]) {
+        let lineRange = NSRange(location: offset, length: (line as NSString).length)
+        let caretOnLine = touches(lineRange)
+
+        // Emphasis inside a heading keeps the heading's size.
+        var lineBold = boldFont
+        var lineItalic = italicFont
+
         for span in MarkdownSyntax.blockSpans(in: line) {
             let range = shifted(span.range, by: offset, within: storage)
             switch span.style {
             case .marker:
                 storage.addAttribute(.foregroundColor, value: palette.marker, range: range)
-            case .heading:
-                storage.addAttributes([.font: boldFont,
-                                       .foregroundColor: palette.text], range: range)
+            case .heading(let level):
+                let font = headingFonts[max(0, min(level, headingFonts.count) - 1)]
+                storage.addAttributes([.font: font, .foregroundColor: palette.text], range: range)
+                lineBold = font
+                lineItalic = Fonts.italic(font)
+                // The hashes share the heading's size when shown, and vanish
+                // once the caret leaves the line.
+                let hashes = NSRange(location: offset, length: range.location - offset)
+                if caretOnLine {
+                    storage.addAttribute(.font, value: font, range: hashes)
+                } else {
+                    storage.addAttributes(hidden, range: hashes)
+                }
             case .quote:
                 storage.addAttributes([.font: italicFont,
                                        .foregroundColor: palette.marker], range: range)
             }
         }
 
-        for span in MarkdownSyntax.codeSpans(in: line) {
-            storage.addAttribute(.backgroundColor, value: palette.codeBackground,
-                                 range: shifted(span, by: offset, within: storage))
-        }
-
         for markup in MarkdownSyntax.inlineMarkup(in: line) {
             let content = shifted(markup.content, by: offset, within: storage)
             switch markup.kind {
             case .bold:
-                storage.addAttributes([.font: boldFont,
+                storage.addAttributes([.font: lineBold,
                                        .foregroundColor: palette.text], range: content)
             case .italic:
-                storage.addAttributes([.font: italicFont,
+                storage.addAttributes([.font: lineItalic,
                                        .foregroundColor: palette.text], range: content)
             case .link:
                 storage.addAttributes([.foregroundColor: palette.link,
                                        .underlineStyle: NSUnderlineStyle.single.rawValue],
                                       range: content)
+            case .code:
+                storage.addAttribute(.backgroundColor, value: palette.codeBackground, range: content)
             }
 
+            let revealed = selection.map(markup.isRevealed(by:)) ?? false
             for marker in markup.markers {
-                storage.addAttributes(hidden, range: shifted(marker, by: offset, within: storage))
+                let range = shifted(marker, by: offset, within: storage)
+                if revealed {
+                    storage.addAttribute(.foregroundColor, value: palette.marker, range: range)
+                    if markup.kind == .code {
+                        storage.addAttribute(.backgroundColor, value: palette.codeBackground,
+                                             range: range)
+                    }
+                } else {
+                    storage.addAttributes(hidden, range: range)
+                }
             }
         }
+    }
+
+    /// Whether the selection is inside `range` or a caret sits at its edge —
+    /// the same rule `InlineMarkup.isRevealed` applies to spans.
+    private func touches(_ range: NSRange) -> Bool {
+        guard let selection else { return false }
+        return selection.location <= range.upperBound && selection.upperBound >= range.location
     }
 
     private func highlightSearchMatches(in storage: NSTextStorage, range: NSRange) {
