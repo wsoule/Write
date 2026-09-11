@@ -113,12 +113,38 @@ final class MarkdownTextView: NSTextView {
 
     /// Every selection change — keys, mouse, programmatic — funnels through
     /// here, so this is where the highlighter learns the caret moved.
+    ///
+    /// Not while the storage is still processing an edit, though: AppKit
+    /// fixes the caret up from inside `processEditing`, and restyling there
+    /// leaves the layout manager unaware of the change, so hidden markers keep
+    /// their old width on screen. `didChangeText` covers that case instead.
     override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity,
                                     stillSelecting: Bool) {
         super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        guard let textStorage, textStorage.editedMask.isEmpty else {
+            // Reloading a document replaces the storage without ever
+            // calling didChangeText, so catch up once the edit has settled.
+            needsSelectionSync = true
+            DispatchQueue.main.async { [weak self] in self?.syncSelectionIfNeeded() }
+            return
+        }
         if let first = ranges.first?.rangeValue {
             highlighter?.setSelection(first)
         }
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        needsSelectionSync = false
+        highlighter?.setSelection(selectedRange())
+    }
+
+    private var needsSelectionSync = false
+
+    private func syncSelectionIfNeeded() {
+        guard needsSelectionSync else { return }
+        needsSelectionSync = false
+        highlighter?.setSelection(selectedRange())
     }
 
     override func viewDidMoveToWindow() {

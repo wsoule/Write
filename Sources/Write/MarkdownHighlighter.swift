@@ -92,13 +92,18 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
     /// Restyles the paragraphs the caret left and entered, which is all that
     /// can change: reveal is decided per span from the selection.
     func setSelection(_ newSelection: NSRange) {
-        let old = selection
-        selection = newSelection
-        guard let textStorage = self.textStorage else { return }
-
+        guard let textStorage = self.textStorage else {
+            selection = newSelection
+            return
+        }
         let string = textStorage.string as NSString
-        var ranges = [string.paragraphRange(for: newSelection)]
-        if let old, old.location <= string.length {
+        // A selection that reached the old end of the text can outlive an
+        // edit that shortened it; clamp rather than trust either range.
+        let old = selection.map { clamp($0, to: string.length) }
+        selection = clamp(newSelection, to: string.length)
+
+        var ranges = [string.paragraphRange(for: selection!)]
+        if let old {
             let previous = string.paragraphRange(for: old)
             if !NSEqualRanges(previous, ranges[0]) { ranges.append(previous) }
         }
@@ -132,6 +137,11 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
         searchQuery = query
         self.currentMatchLocation = currentMatchLocation
         rehighlightEverything()
+    }
+
+    private func clamp(_ range: NSRange, to length: Int) -> NSRange {
+        let location = min(max(0, range.location), length)
+        return NSRange(location: location, length: min(range.length, length - location))
     }
 
     // MARK: - NSTextStorageDelegate
@@ -231,7 +241,9 @@ final class MarkdownHighlighter: NSObject, NSTextStorageDelegate {
                 storage.addAttribute(.backgroundColor, value: palette.codeBackground, range: content)
             }
 
-            let revealed = selection.map(markup.isRevealed(by:)) ?? false
+            let revealed = selection.map {
+                markup.isRevealed(by: NSRange(location: $0.location - offset, length: $0.length))
+            } ?? false
             for marker in markup.markers {
                 let range = shifted(marker, by: offset, within: storage)
                 if revealed {

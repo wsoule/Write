@@ -46,6 +46,27 @@ final class MarkdownHighlighterTests: XCTestCase {
         XCTAssertEqual(font(at: 6)?.pointSize, 20)
     }
 
+    func testMarkersRevealOnLinesAfterTheFirst() {
+        // Span ranges from the scanner are line-relative; the selection is
+        // not. Mixing them up made reveal work only on line one.
+        type("a first line longer than the span\n**bold** more")
+        let span = 34   // the "**" after the newline
+        highlighter.setSelection(NSRange(location: span, length: 0))
+        XCTAssertEqual(font(at: span)?.pointSize, 20, "caret at the span's edge reveals it")
+        highlighter.setSelection(NSRange(location: span + 12, length: 0))
+        XCTAssertEqual(font(at: span)?.pointSize, 1, "caret away from it collapses it again")
+    }
+
+    func testSelectionPastTheEndOfAShrunkenDocumentDoesNotThrow() {
+        // Replacing a selection that reached the old end leaves the previous
+        // selection dangling past the new end; it must be clamped, not used.
+        type("one two three")
+        highlighter.setSelection(NSRange(location: 6, length: 5))
+        storage.replaceCharacters(in: NSRange(location: 6, length: 7), with: "x")
+        highlighter.setSelection(NSRange(location: 7, length: 0))
+        XCTAssertEqual(storage.string, "one twx")
+    }
+
     func testHeadingsScaleByLevel() {
         type("# One\n## Two\n### Three\n#### Four")
         XCTAssertEqual(font(at: 2)?.pointSize, 32)
