@@ -49,9 +49,9 @@ else
     --title "Write $version" --generate-notes
 fi
 
-cask="$tap/Casks/write.rb"
+cask="$tap/Casks/write-md.rb"
 sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" \
           -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
-(cd "$tap" && git add Casks/write.rb && git commit -q -m "write $version" && git push -q origin HEAD)
+(cd "$tap" && git add Casks/write-md.rb && git commit -q -m "write $version" && git push -q origin HEAD)
 
 echo "Released v$version — sha256 $sha"

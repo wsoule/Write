@@ -8,6 +8,15 @@ This is a native macOS port of [Omawrite](https://github.com/omacom/omawrite),
 which is written in Qt Quick and C++ for Omarchy. The typography, palette,
 Markdown styling and editing behaviour come from there; the shell is AppKit.
 
+## Install
+
+```sh
+brew install --cask wsoule/tap/write-md
+```
+
+Or grab `Write.app` from the [latest release](https://github.com/wsoule/Write/releases/latest).
+It is a universal, notarized build for macOS 13 or later.
+
 ## Build
 
 Requires macOS 13 or later and the Xcode command line tools.
